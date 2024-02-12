@@ -25,3 +25,4 @@
   - variable (if present) ってなんだ
   - If the AT and ED flags are not set, it is always 37 bytes long.
   - AT と ED が両方 true だったら境界はどこだ？
+- AttestedCredentialData のパースがめんどい
