@@ -6,6 +6,7 @@ import (
 	"errors"
 
 	"example.com/model"
+	"github.com/fxamacker/cbor/v2"
 )
 
 type COSEAlgorithmIdentifier int32
@@ -136,16 +137,43 @@ func NewAuthenticatorFlags(flags byte) AuthenticatorFlags {
 }
 
 type AttestedCredentialData struct {
-	AAGUId              []byte `json:"aaguid"`
-	CredentialIdLength  uint16 `json:"credentialIdLength"`
-	CredentialId        []byte `json:"credentialId"`
-	CredentialPublicKey map[string]string
+	AAGUId              []byte                 `json:"aaguid"`
+	CredentialIdLength  uint16                 `json:"credentialIdLength"`
+	CredentialId        []byte                 `json:"credentialId"`
+	CredentialPublicKey map[string]interface{} `json:"credentialPublicKey"`
+}
+
+type Extensions map[string]interface{}
+
+func NewAttestedCredentialData(data []byte) (AttestedCredentialData, Extensions, error) {
+	credentialIdLength := uint16(binary.BigEndian.Uint16(data[16:18]))
+	if credentialIdLength > 1023 {
+		return AttestedCredentialData{}, nil, errors.New("credentialIdLength is not valid")
+	}
+	credPubKey := make(map[string]any)
+	extByte, err := cbor.UnmarshalFirst(data[credentialIdLength:], credPubKey)
+	if err != nil {
+		return AttestedCredentialData{}, nil, errors.New("credentialPublicKey is not valid")
+	}
+
+	ext := make(Extensions)
+	if err := cbor.Unmarshal(extByte, ext); err != nil {
+		return AttestedCredentialData{}, nil, errors.New("extensions is not valid")
+	}
+	return AttestedCredentialData{
+		AAGUId:              data[:16],
+		CredentialIdLength:  credentialIdLength,
+		CredentialId:        data[18:credentialIdLength],
+		CredentialPublicKey: credPubKey,
+	}, ext, nil
 }
 
 type AuthenticatorData struct {
-	RpIdHash  []byte
-	Flags     AuthenticatorFlags
-	SignCount uint32
+	RpIdHash               []byte                 `json:"rpIdHash"`
+	Flags                  AuthenticatorFlags     `json:"flags"`
+	SignCount              uint32                 `json:"signCount"`
+	AttestedCredentialData AttestedCredentialData `json:"attestedCredentialData"`
+	Extensions             Extensions             `json:"extensions"`
 }
 
 func (a *AuthenticatorData) Unmarshal(data []byte) error {
@@ -155,12 +183,29 @@ func (a *AuthenticatorData) Unmarshal(data []byte) error {
 	return nil
 }
 
-func NewAuthData(data []byte) AuthenticatorData {
-	return AuthenticatorData{
-		RpIdHash:  data[:32],
-		Flags:     NewAuthenticatorFlags(data[32]),
-		SignCount: uint32(binary.BigEndian.Uint32(data[33:37])),
+func NewAuthData(data []byte) (AuthenticatorData, error) {
+	defaultAuthData := data[:37]
+	optionAuthData := data[37:]
+
+	authData := AuthenticatorData{
+		RpIdHash:  defaultAuthData[:32],
+		Flags:     NewAuthenticatorFlags(defaultAuthData[32]),
+		SignCount: uint32(binary.BigEndian.Uint32(defaultAuthData[33:])),
 	}
+
+	var err error
+	if authData.Flags.AT {
+		authData.AttestedCredentialData, authData.Extensions, err = NewAttestedCredentialData(optionAuthData)
+		if err != nil {
+			return AuthenticatorData{}, err
+		}
+	} else if authData.Flags.ED {
+		if err = cbor.Unmarshal(optionAuthData, authData.Extensions); err != nil {
+			return AuthenticatorData{}, err
+		}
+	}
+
+	return authData, nil
 }
 
 type CollectedClientData struct {

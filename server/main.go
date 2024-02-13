@@ -92,7 +92,11 @@ func handleRegisterEnd(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, Status{Message: "error"})
 	}
 
-	authData := webauthn.NewAuthData(attestationObject.AuthData)
+	authData, err := webauthn.NewAuthData(attestationObject.AuthData)
+	if err != nil {
+		c.Logger().Errorf("authenticatorData is not valid: %v", err)
+		return c.JSON(http.StatusBadRequest, Status{Message: "error"})
+	}
 
 	// 13. Verify that the [rpIdHash](https://www.w3.org/TR/webauthn-3/#authdata-rpidhash) in authData is the SHA-256 hash of the [RP ID](https://www.w3.org/TR/webauthn-3/#rp-id) expected by the [Relying Party](https://www.w3.org/TR/webauthn-3/#relying-party).
 	correctRpIdHash := sha256.Sum256([]byte(options.Rp.Id))
