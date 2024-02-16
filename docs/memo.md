@@ -41,17 +41,17 @@
 
 > Upon successful execution of [create()](https://w3c.github.io/webappsec-credential-management/#dom-credentialscontainer-create) or [get()](https://www.w3.org/TR/credential-management-1/#dom-credentialscontainer-get), the [Relying Party](https://www.w3.org/TR/webauthn-3/#relying-party)'s script receives a [PublicKeyCredential](https://www.w3.org/TR/webauthn-3/#publickeycredential) containing an [AuthenticatorAttestationResponse](https://www.w3.org/TR/webauthn-3/#authenticatorattestationresponse) or [AuthenticatorAssertionResponse](https://www.w3.org/TR/webauthn-3/#authenticatorassertionresponse) structure, respectively, from the client. It must then deliver the contents of this structure to the [Relying Party](https://www.w3.org/TR/webauthn-3/#relying-party) server, using methods outside the scope of this specification. This section describes the operations that the [Relying Party](https://www.w3.org/TR/webauthn-3/#relying-party) must perform upon receipt of these structures.
 
-create()またはget()の実行に成功すると、依拠当事者のスクリプトは、それぞれAuthenticatorAttestationResponseまたはAuthenticatorAssertionResponse構造体を含むPublicKeyCredentialをクライアントから受け取る。その後、本仕様の範囲外のメソッドを使用して、この構造体のコンテンツを依拠 当事者サーバーに配信する必要がある。このセクションでは、これらの構造体を受け取ったときに信頼当事者が実行しなけ ればならない操作について説明する。
+create()またはget()の実行に成功すると、Relying Partyのスクリプトは、それぞれAuthenticatorAttestationResponseまたはAuthenticatorAssertionResponse構造体を含むPublicKeyCredentialをクライアントから受け取る。その後、本仕様の範囲外のメソッドを使用して、この構造体のコンテンツをRelying Partyサーバーに配信する必要がある。このセクションでは、これらの構造体を受け取ったときに信頼当事者が実行しなけ ればならない操作について説明する。
 
 #### [7.1. Registering a New Credential](https://www.w3.org/TR/webauthn-3/#sctn-registering-a-new-credential)
 
 > In order to perform a [registration ceremony](https://www.w3.org/TR/webauthn-3/#registration-ceremony), the [Relying Party](https://www.w3.org/TR/webauthn-3/#relying-party) MUST proceed as follows:
 
-登録セレモニーを行うために、依拠当事者は以下の手続きを行わなければならない：
+登録セレモニーを行うために、Relying Partyは以下の手続きを行わなければならない：
 
 > 1. Let options be a new [PublicKeyCredentialCreationOptions](https://www.w3.org/TR/webauthn-3/#dictdef-publickeycredentialcreationoptions) structure configured to the [Relying Party](https://www.w3.org/TR/webauthn-3/#relying-party)'s needs for the ceremony.
 
-1. optionsを、セレモニーに対する依拠当事者のニーズに合わせて構成された新しいPublicKeyCredentialCreationOptions構造体とする。
+1. optionsを、セレモニーに対するRelying Partyのニーズに合わせて構成された新しいPublicKeyCredentialCreationOptions構造体とする。
 
 > 2. Call [navigator.credentials.create()](https://w3c.github.io/webappsec-credential-management/#dom-credentialscontainer-create) and pass options as the [publicKey](https://www.w3.org/TR/webauthn-3/#dom-credentialcreationoptions-publickey) option. Let credential be the result of the successfully resolved promise. If the promise is rejected, abort the ceremony with a user-visible error, or otherwise guide the user experience as might be determinable from the context available in the rejected promise. For example if the promise is rejected with an error code equivalent to "[InvalidStateError](https://webidl.spec.whatwg.org/#invalidstateerror)", the user might be instructed to use a different [authenticator](https://www.w3.org/TR/webauthn-3/#authenticator). For information on different error contexts and the circumstances leading to them, see [§ 6.3.2 The authenticatorMakeCredential Operation.](https://www.w3.org/TR/webauthn-3/#sctn-op-make-cred)
 
@@ -91,7 +91,7 @@ create()またはget()の実行に成功すると、依拠当事者のスクリ�
 
 > 9. Verify that the value of C.[origin](https://www.w3.org/TR/webauthn-3/#dom-collectedclientdata-origin) is an [origin](https://html.spec.whatwg.org/multipage/origin.html#concept-origin) expected by the [Relying Party](https://www.w3.org/TR/webauthn-3/#relying-party). See [§ 13.4.9 Validating the origin of a credential](https://www.w3.org/TR/webauthn-3/#sctn-validating-origin) for guidance.
 
-9. C.origin の値がRelying Partyが期待する origin であることを検証する。ガイダンスについては、第 13.4.9 節「クレデンシャルのオリジンの検証」を参照。
+9. C.origin の値が Relying Party が期待する origin であることを検証する。ガイダンスについては、第 13.4.9 節「クレデンシャルのオリジンの検証」を参照。
 
 > 10. If C.[topOrigin](https://www.w3.org/TR/webauthn-3/#dom-collectedclientdata-toporigin) is present:
 
@@ -99,11 +99,11 @@ create()またはget()の実行に成功すると、依拠当事者のスクリ�
 
 > 1. Verify that the [Relying Party](https://www.w3.org/TR/webauthn-3/#relying-party) expects that this credential would have been created within an iframe that is not [same-origin with its ancestors](https://w3c.github.io/webappsec-credential-management/#same-origin-with-its-ancestors).
 
-  1. Relying Partyは、このクレデンシャルが祖先と同一オリジンでない iframe 内で作成され ることを期待していることを検証する。
+  1. Relying Party は、このクレデンシャルが祖先と同一オリジンでない iframe 内で作成され ることを期待していることを検証する。
 
 > 2. Verify that the value of C.[topOrigin](https://www.w3.org/TR/webauthn-3/#dom-collectedclientdata-toporigin) matches the [origin](https://html.spec.whatwg.org/multipage/origin.html#concept-origin) of a page that the [Relying Party](https://www.w3.org/TR/webauthn-3/#relying-party) expects to be sub-framed within. See [§ 13.4.9 Validating the origin of a credential](https://www.w3.org/TR/webauthn-3/#sctn-validating-origin) for guidance.
 
-  2. C.topOrigin の値が、Relying Partyがサブフレーム化されることを期待するページのオリジン と一致することを検証する。ガイダンスについては、セ クション 13.4.9 クレデンシャルのオリジンの検証を参照のこと。
+  2. C.topOrigin の値が、Relying Party がサブフレーム化されることを期待するページのオリジン と一致することを検証する。ガイダンスについては、セ クション 13.4.9 クレデンシャルのオリジンの検証を参照のこと。
 
 > 11. Let hash be the result of computing a hash over response.[clientDataJSON](https://www.w3.org/TR/webauthn-3/#dom-authenticatorresponse-clientdatajson) using SHA-256.
 
@@ -115,7 +115,7 @@ create()またはget()の実行に成功すると、依拠当事者のスクリ�
 
 > 13. Verify that the [rpIdHash](https://www.w3.org/TR/webauthn-3/#authdata-rpidhash) in authData is the SHA-256 hash of the [RP ID](https://www.w3.org/TR/webauthn-3/#rp-id) expected by the [Relying Party](https://www.w3.org/TR/webauthn-3/#relying-party).
 
-13.  authDataのrpIdHashが、Relying Partyが期待するRP IDのSHA-256ハッシュであることを確認する。
+13.  authDataのrpIdHashが、Relying Party が期待するRP IDのSHA-256ハッシュであることを確認する。
 
 > 14. Verify that the [UP](https://www.w3.org/TR/webauthn-3/#authdata-flags-up) bit of the [flags](https://www.w3.org/TR/webauthn-3/#authdata-flags) in authData is set.
 
@@ -123,7 +123,7 @@ create()またはget()の実行に成功すると、依拠当事者のスクリ�
 
 > 15. If the [Relying Party](https://www.w3.org/TR/webauthn-3/#relying-party) requires [user verification](https://www.w3.org/TR/webauthn-3/#user-verification) for this registration, verify that the [UV](https://www.w3.org/TR/webauthn-3/#authdata-flags-uv) bit of the [flags](https://www.w3.org/TR/webauthn-3/#authdata-flags) in authData is set.
 
-15. Relying Partyがこの登録のためにユーザー検証を必要とする場合、authDataのフラグのUVビットが設定されていることを確認する。
+15. Relying Party がこの登録のためにユーザー検証を必要とする場合、authDataのフラグのUVビットが設定されていることを確認する。
 
 > 16. If the [BE](https://www.w3.org/TR/webauthn-3/#authdata-flags-be) bit of the [flags](https://www.w3.org/TR/webauthn-3/#authdata-flags) in authData is not set, verify that the [BS](https://www.w3.org/TR/webauthn-3/#authdata-flags-bs) bit is not set.
 
@@ -131,7 +131,7 @@ create()またはget()の実行に成功すると、依拠当事者のスクリ�
 
 > 17. If the [Relying Party](https://www.w3.org/TR/webauthn-3/#relying-party) uses the credential’s [backup eligibility](https://www.w3.org/TR/webauthn-3/#backup-eligibility) to inform its user experience flows and/or policies, evaluate the [BE](https://www.w3.org/TR/webauthn-3/#authdata-flags-be) bit of the [flags](https://www.w3.org/TR/webauthn-3/#authdata-flags) in authData.
 
-17. Relying Partyがクレデンシャルのバックアップ資格を使用してユーザ・エクスペリエン ス・フローおよび/またはポリシーを通知する場合は、authData 内のフラグの BE ビットを評価する。
+17. Relying Party がクレデンシャルのバックアップ資格を使用してユーザ・エクスペリエン ス・フローおよび/またはポリシーを通知する場合は、authData 内のフラグの BE ビットを評価する。
 
 > 18. If the Relying Party uses the credential’s backup state to inform its user experience flows and/or policies, evaluate the BS bit of the flags in authData.
 
@@ -143,15 +143,15 @@ create()またはget()の実行に成功すると、依拠当事者のスクリ�
 
 > 20. Verify that the values of the client extension outputs in clientExtensionResults and the authenticator extension outputs in the extensions in authData are as expected, considering the client extension input values that were given in options.extensions and any specific policy of the Relying Party regarding unsolicited extensions, i.e., those that were not specified as part of options.extensions. In the general case, the meaning of "are as expected" is specific to the Relying Party and which extensions are in use.
 
-20. clientExtensionResultsのクライアント拡張出力とauthDataの拡張の認証機拡張出力の 値が、options.extensionsで指定されたクライアント拡張入力値と、options.extensionsの 一部として指定されなかった未承諾拡張(unsolicited extensions)に関するRelying Partyの特定のポリシーとを考慮して、期待通りであることを検証する。一般的な場合、"are as expected "の意味は、Relying Partyとどの拡張が使用されているかに固有である。
+20. clientExtensionResultsのクライアント拡張出力とauthDataの拡張の認証機拡張出力の 値が、options.extensionsで指定されたクライアント拡張入力値と、options.extensionsの 一部として指定されなかった未承諾拡張(unsolicited extensions)に関する Relying Party の特定のポリシーとを考慮して、期待通りであることを検証する。一般的な場合、"are as expected "の意味は、Relying Party とどの拡張が使用されているかに固有である。
 
 > NOTE: Client platforms MAY enact local policy that sets additional authenticator extensions or client extensions and thus cause values to appear in the authenticator extension outputs or client extension outputs that were not originally specified as part of options.extensions. Relying Parties MUST be prepared to handle such situations, whether it be to ignore the unsolicited extensions or reject the attestation. The Relying Party can make this decision based on local policy and the extensions in use.
 
-注意: クライアントプラットフォームは、追加の認証機能拡張またはクライアント機 能拡張を設定するローカルポリシーを制定してもよい[MAY]。その結果、options.extensions の一部として元々指定されていなかった値が、認証機能拡張出力またはク ライアント機能拡張出力に現れることになる。Relying当事者は、要求されていない拡張を無視するか、あるいは認証を拒否するか、 そのような状況に対処できるように準備しなければならない[MUST]。Relying Partyは、ローカルポリシーと使用中の拡張に基づいてこの決定を下すことができる。
+注意: クライアントプラットフォームは、追加の認証機能拡張またはクライアント機 能拡張を設定するローカルポリシーを制定してもよい[MAY]。その結果、options.extensions の一部として元々指定されていなかった値が、認証機能拡張出力またはク ライアント機能拡張出力に現れることになる。Relying当事者は、要求されていない拡張を無視するか、あるいは認証を拒否するか、 そのような状況に対処できるように準備しなければならない[MUST]。Relying Party は、ローカルポリシーと使用中の拡張に基づいてこの決定を下すことができる。
 
 > NOTE: Since all extensions are OPTIONAL for both the client and the authenticator, the Relying Party MUST also be prepared to handle cases where none or not all of the requested extensions were acted upon.
 
-注: すべての拡張はクライアントと認証者の両方にとってOPTIONALであるため、 Relying Partyは、要求された拡張のどれにも対応しないか、あるいは対応し ない場合にも対応できるように準備しなければならない[MUST]。
+注: すべての拡張はクライアントと認証者の両方にとってOPTIONALであるため、 Relying Party は、要求された拡張のどれにも対応しないか、あるいは対応し ない場合にも対応できるように準備しなければならない[MUST]。
 
 > NOTE: The devicePubKey extension has explicit verification procedures, see § 10.2.2.3.1 Registration (create()).
 
@@ -199,7 +199,7 @@ create()またはget()の実行に成功すると、依拠当事者のスクリ�
 
 > NOTE: The rationale for Relying Parties rejecting duplicate credential IDs is as follows: credential IDs contain sufficient entropy that accidental duplication is very unlikely. However, attestation types other than self attestation do not include a self-signature to explicitly prove possession of the credential private key at registration time. Thus an attacker who has managed to obtain a user’s credential ID and credential public key for a site (this could be potentially accomplished in various ways), could attempt to register a victim’s credential as their own at that site. If the Relying Party accepts this new registration and replaces the victim’s existing credential registration, and the credentials are discoverable, then the victim could be forced to sign into the attacker’s account at their next attempt. Data saved to the site by the victim in that state would then be available to the attacker.
 
-注：依拠当事者がクレデンシャル ID の重複を拒否する根拠は以下のとおりである。クレデンシャル ID には十分なエントロピーが含まれているため、偶発的な重複は非常に考えにくい。しかし、自己認証以外の認証タイプには、登録時にクレデンシャル・プライベート鍵の所有 を明示的に証明する自己署名が含まれていない。したがって、あるサイトのユーザーのクレデンシャル ID およびクレデンシャル公開鍵を何とかして入手した攻撃者（これはさまざまな方法で達成できる可能性がある）は、被害者のクレデンシャルをそのサイトで自分のものとして登録しようとすることができる。Relying Party がこの新しい登録を受け入れ、被害者の既存のクレデンシャル登録を置き換え、クレデンシャル が発見可能である場合、被害者は次の試みで攻撃者のアカウントにサインインすることを強制される可能性が ある。その状態で被害者がサイトに保存したデータは、攻撃者が利用できるようになる。
+注：Relying Party がクレデンシャル ID の重複を拒否する根拠は以下のとおりである。クレデンシャル ID には十分なエントロピーが含まれているため、偶発的な重複は非常に考えにくい。しかし、自己認証以外の認証タイプには、登録時にクレデンシャル・プライベート鍵の所有 を明示的に証明する自己署名が含まれていない。したがって、あるサイトのユーザーのクレデンシャル ID およびクレデンシャル公開鍵を何とかして入手した攻撃者（これはさまざまな方法で達成できる可能性がある）は、被害者のクレデンシャルをそのサイトで自分のものとして登録しようとすることができる。Relying Party がこの新しい登録を受け入れ、被害者の既存のクレデンシャル登録を置き換え、クレデンシャル が発見可能である場合、被害者は次の試みで攻撃者のアカウントにサインインすることを強制される可能性が ある。その状態で被害者がサイトに保存したデータは、攻撃者が利用できるようになる。
 
 > 27. If the attestation statement attStmt verified successfully and is found to be trustworthy, then create and store a new credential record in the user account that was denoted in options.user, with the following contents:
 
@@ -211,11 +211,11 @@ create()またはget()の実行に成功すると、依拠当事者のスクリ�
 
 > NOTE: However, if permitted by policy, the Relying Party MAY register the credential ID and credential public key but treat the credential as one with self attestation (see § 6.5.4 Attestation Types). If doing so, the Relying Party is asserting there is no cryptographic proof that the public key credential has been generated by a particular authenticator model. See [FIDOSecRef] and [UAFProtocol] for a more detailed discussion.
 
-注：ただしポリシーで許可されている場合、依拠当事者はクレデンシャル ID とクレデンシャル公開 鍵を登録してもよいが、クレデンシャルを自己認証のものとして扱ってもよい（§6.5.4 認証タイプ参照）。そうする場合、依拠当事者は、公開鍵クレデンシャルが特定の認証子モデルによって生成された という暗号学的証明がないことを主張することになる。より詳細な議論については、[FIDOSecRef]および[UAFProtocol]を参照のこと。
+注：ただしポリシーで許可されている場合、Relying Party はクレデンシャル ID とクレデンシャル公開 鍵を登録してもよいが、クレデンシャルを自己認証のものとして扱ってもよい（§6.5.4 認証タイプ参照）。そうする場合、Relying Party は、公開鍵クレデンシャルが特定の認証子モデルによって生成された という暗号学的証明がないことを主張することになる。より詳細な議論については、[FIDOSecRef]および[UAFProtocol]を参照のこと。
 
 > Verification of attestation objects requires that the Relying Party has a trusted method of determining acceptable trust anchors in step 22 above. Also, if certificates are being used, the Relying Party MUST have access to certificate status information for the intermediate CA certificates. The Relying Party MUST also be able to build the attestation certificate chain if the client did not provide this chain in the attestation information.
 
-証明書オブジェクトの検証は、信頼当事者が上記のステップ22において、許容可能なトラストアンカー を決定する信頼できる方法を有していることを必要とする。また、証明書が使用されている場合、依拠当事者は、中間 CA 証明書の証明書ステータ ス情報にアクセスできなければならない。クライアントが証明書情報において証明書チェーンを提供していない場合、依拠当事者は、証明 書チェーンを構築することもできなければならない。
+証明書オブジェクトの検証は、Relying Party が上記のステップ22において、許容可能なトラストアンカー を決定する信頼できる方法を有していることを必要とする。また、証明書が使用されている場合、Relying Party は、中間 CA 証明書の証明書ステータ ス情報にアクセスできなければならない。クライアントが証明書情報において証明書チェーンを提供していない場合、Relying Party は、証明書チェーンを構築することもできなければならない。
 
 ## [RFC 8949 Concise Binary Object Representation (CBOR)](https://www.rfc-editor.org/rfc/rfc8949.html)
 
