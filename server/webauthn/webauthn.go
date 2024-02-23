@@ -3,7 +3,9 @@ package webauthn
 import (
 	"crypto/rand"
 	"encoding/binary"
+	"encoding/hex"
 	"errors"
+	"fmt"
 
 	"example.com/model"
 	"github.com/fxamacker/cbor/v2"
@@ -136,36 +138,47 @@ func NewAuthenticatorFlags(flags byte) AuthenticatorFlags {
 	return af
 }
 
-type AttestedCredentialData struct {
-	AAGUId              []byte                 `json:"aaguid"`
-	CredentialIdLength  uint16                 `json:"credentialIdLength"`
-	CredentialId        []byte                 `json:"credentialId"`
-	CredentialPublicKey map[string]interface{} `json:"credentialPublicKey"`
+type CredentialPublicKey struct {
+	Kty     int    `cbor:"1,keyasint"`
+	Kid     []byte `cbor:"2,keyasint,omitempty"`
+	Alg     int    `cbor:"3,keyasint,omitempty"`
+	KeyOpts []int  `cbor:"4,keyasint,omitempty"`
+	BaseIV  []byte `cbor:"5,keyasint,omitempty"`
+	Crv     int    `cbor:"-1,keyasint"`
+	X       []byte `cbor:"-2,keyasint"`
+	Y       []byte `cbor:"-3,keyasint"`
 }
 
-type Extensions map[string]interface{}
+type AttestedCredentialData struct {
+	AAGUId              []byte              `json:"aaguid"`
+	CredentialIdLength  uint16              `json:"credentialIdLength"`
+	CredentialId        []byte              `json:"credentialId"`
+	CredentialPublicKey CredentialPublicKey `json:"credentialPublicKey"`
+}
 
-func NewAttestedCredentialData(data []byte) (AttestedCredentialData, Extensions, error) {
+func NewAttestedCredentialData(data []byte) (AttestedCredentialData, cbor.RawMessage, error) {
 	credentialIdLength := uint16(binary.BigEndian.Uint16(data[16:18]))
 	if credentialIdLength > 1023 {
 		return AttestedCredentialData{}, nil, errors.New("credentialIdLength is not valid")
 	}
-	credPubKey := make(map[string]any)
-	extByte, err := cbor.UnmarshalFirst(data[credentialIdLength:], credPubKey)
+	var credPubKey CredentialPublicKey
+	extByte, err := cbor.UnmarshalFirst(data[18+credentialIdLength:], &credPubKey)
 	if err != nil {
-		return AttestedCredentialData{}, nil, errors.New("credentialPublicKey is not valid")
+		return AttestedCredentialData{}, nil, errors.Join(errors.New("credentialPublicKey is not valid"), err)
 	}
 
-	ext := make(Extensions)
-	if err := cbor.Unmarshal(extByte, ext); err != nil {
-		return AttestedCredentialData{}, nil, errors.New("extensions is not valid")
-	}
+	fmt.Printf("CredPubKey: %v\n", hex.EncodeToString(data[18+credentialIdLength:len(data)-len(extByte)]))
+	fmt.Printf("Extensions: %v\n", hex.EncodeToString(extByte))
+	// var ext cbor.RawMessage
+	// if err := cbor.Unmarshal(extByte, ext); err != nil {
+	// 	return AttestedCredentialData{}, nil, errors.Join(errors.New("extensions is not valid"), err)
+	// }
 	return AttestedCredentialData{
 		AAGUId:              data[:16],
 		CredentialIdLength:  credentialIdLength,
 		CredentialId:        data[18:credentialIdLength],
 		CredentialPublicKey: credPubKey,
-	}, ext, nil
+	}, nil, nil
 }
 
 type AuthenticatorData struct {
@@ -173,7 +186,7 @@ type AuthenticatorData struct {
 	Flags                  AuthenticatorFlags     `json:"flags"`
 	SignCount              uint32                 `json:"signCount"`
 	AttestedCredentialData AttestedCredentialData `json:"attestedCredentialData"`
-	Extensions             Extensions             `json:"extensions"`
+	Extensions             cbor.RawMessage        `json:"extensions"`
 }
 
 func (a *AuthenticatorData) Unmarshal(data []byte) error {
@@ -217,7 +230,7 @@ type CollectedClientData struct {
 }
 
 type AttestationObject struct {
-	Fmt      string            `json:"fmt"`
-	AuthData []byte            `json:"authData"`
-	AttStmt  map[string]string `json:"attStmt"`
+	Fmt      string          `json:"fmt"`
+	AuthData []byte          `json:"authData"`
+	AttStmt  cbor.RawMessage `json:"attStmt"`
 }

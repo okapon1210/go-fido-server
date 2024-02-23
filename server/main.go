@@ -118,6 +118,9 @@ func handleRegisterEnd(c echo.Context) error {
 		}
 	}
 
+	// 19. Verify that the "alg" parameter in the credential public key in authData matches the alg attribute of one of the items in options.pubKeyCredParams.
+	c.Logger().Infof("alg: %v", authData.AttestedCredentialData.CredentialPublicKey)
+
 	return c.JSON(http.StatusAccepted, Status{Message: "accepted"})
 }
 
