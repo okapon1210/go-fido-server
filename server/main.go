@@ -8,7 +8,6 @@ import (
 	"net/http"
 
 	"example.com/model"
-	"example.com/webauthn"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
@@ -20,21 +19,30 @@ type Status struct {
 }
 
 type RegisterMessage struct {
-	Response webauthn.AuthenticatorAttestationResponse `json:"response"`
-	Results  any                                       `json:"results"`
+	Id       string `json:"id"`
+	Type     string `json:"type"`
+	Response struct {
+		ClientDataJSON    []byte   `json:"clientDataJSON"`
+		AttestationObject []byte   `json:"attestationObject"`
+		Transports        []string `json:"transports"`
+	} `json:"response"`
 }
 
 var (
-	optionsMap = make(map[string]webauthn.PublicKeyCredentialCreationOptions)
+	optionsMap     = make(map[string]model.PublicKeyCredentialCreationOptions)
+	userMap        = make(map[string][]model.CredentialRecord)
+	credentialsMap = make(map[string]model.User)
 )
 
 func handleRegisterStart(c echo.Context) error {
-	// 1. Let options be a new PublicKeyCredentialCreationOptions structure configured to the Relying Party's needs for the ceremony.
-	options, err := webauthn.NewPublicKeyCredentialCreationOptions(model.User{
+	user := model.User{
 		Id:          make([]byte, 16),
 		Name:        "hoge@example.com",
 		DisplayName: "okapon",
-	})
+	}
+
+	// 1. Let options be a new PublicKeyCredentialCreationOptions structure configured to the Relying Party's needs for the ceremony.
+	options, err := model.NewPublicKeyCredentialCreationOptions(user)
 	if err != nil {
 		c.Logger().Error("failed to NewPublicKeyCredentialCreationOptions. err: " + err.Error())
 		return c.JSON(http.StatusInternalServerError, Status{Message: "error"})
@@ -56,7 +64,7 @@ func handleRegisterEnd(c echo.Context) error {
 	}
 
 	// 6. Let C, the [client data](https://www.w3.org/TR/webauthn-3/#client-data) claimed as collected during the credential creation, be the result of running an implementation-specific JSON parser on JSONtext.
-	var clientData webauthn.CollectedClientData
+	var clientData model.CollectedClientData
 	if err := json.Unmarshal(registerMessage.Response.ClientDataJSON, &clientData); err != nil {
 		c.Logger().Errorf("error: %v, clientDataJSON: %v", err, string(registerMessage.Response.ClientDataJSON))
 		return c.JSON(http.StatusBadRequest, Status{Message: "error"})
@@ -69,6 +77,7 @@ func handleRegisterEnd(c echo.Context) error {
 	}
 
 	// 8. Verify that the value of C.[challenge](https://www.w3.org/TR/webauthn-3/#dom-collectedclientdata-challenge) equals the base64url encoding of options.challenge.
+	c.Logger().Infof("receive challenge: %v", clientData.Challenge+"==")
 	options, ok := optionsMap[clientData.Challenge+"=="]
 	if !ok {
 		c.Logger().Error("challenge is not valid")
@@ -85,14 +94,13 @@ func handleRegisterEnd(c echo.Context) error {
 	// hash := sha256.Sum256(registerMessage.Response.ClientDataJSON)
 
 	// 12. Perform CBOR decoding on the [attestationObject](https://www.w3.org/TR/webauthn-3/#dom-authenticatorattestationresponse-attestationobject) field of the [AuthenticatorAttestationResponse](https://www.w3.org/TR/webauthn-3/#authenticatorattestationresponse) structure to obtain the attestation statement format fmt, the [authenticator data](https://www.w3.org/TR/webauthn-3/#authenticator-data) authData, and the attestation statement attStmt.
-	// TODO: よくわからない
-	var attestationObject webauthn.AttestationObject
+	var attestationObject model.AttestationObject
 	if err := cbor.Unmarshal(registerMessage.Response.AttestationObject, &attestationObject); err != nil {
 		c.Logger().Errorf("attestationObject is not valid: %v", err)
 		return c.JSON(http.StatusBadRequest, Status{Message: "error"})
 	}
 
-	authData, err := webauthn.NewAuthData(attestationObject.AuthData)
+	authData, err := model.UnmarshalAuthenticatorData(attestationObject.AuthData)
 	if err != nil {
 		c.Logger().Errorf("authenticatorData is not valid: %v", err)
 		return c.JSON(http.StatusBadRequest, Status{Message: "error"})
@@ -119,7 +127,74 @@ func handleRegisterEnd(c echo.Context) error {
 	}
 
 	// 19. Verify that the "alg" parameter in the credential public key in authData matches the alg attribute of one of the items in options.pubKeyCredParams.
-	c.Logger().Infof("alg: %v", authData.AttestedCredentialData.CredentialPublicKey)
+	find := false
+	for _, credParams := range options.PubKeyCredParams {
+		if authData.AttestedCredentialData.CredentialPublicKey.Alg() == credParams.Alg {
+			find = true
+			break
+		}
+	}
+	if !find {
+		c.Logger().Errorf("alg is not valid")
+		return c.JSON(http.StatusBadRequest, Status{Message: "error"})
+	}
+
+	// 20. Verify that the values of the client extension outputs in clientExtensionResults and the authenticator extension outputs in the extensions in authData are as expected, considering the client extension input values that were given in options.extensions and any specific policy of the Relying Party regarding unsolicited extensions, i.e., those that were not specified as part of options.extensions. In the general case, the meaning of "are as expected" is specific to the Relying Party and which extensions are in use.
+	// TODO: 拡張はいったん無視
+
+	// 21. Determine the attestation statement format by performing a USASCII case-sensitive match on fmt against the set of supported WebAuthn Attestation Statement Format Identifier values. An up-to-date list of registered WebAuthn Attestation Statement Format Identifier values is maintained in the IANA "WebAuthn Attestation Statement Format Identifiers" registry [IANA-WebAuthn-Registries] established by [RFC8809].
+	switch attestationObject.Fmt {
+	case model.Packed:
+	case model.Tpm:
+	case model.AndroidKey:
+	case model.AndroidSatetynet:
+	case model.FidoU2F:
+	case model.Apple:
+	case model.None:
+	default:
+		c.Logger().Errorf("fmt is not valid")
+		return c.JSON(http.StatusBadRequest, Status{Message: "error"})
+	}
+
+	// 22. Verify that attStmt is a correct attestation statement, conveying a valid attestation signature, by using the attestation statement format fmt’s verification procedure given attStmt, authData and hash.
+	switch attestationObject.Fmt {
+	case model.None:
+	default:
+		return c.JSON(http.StatusBadRequest, Status{Message: "error"})
+	}
+
+	// 25. Verify that the credentialId is ≤ 1023 bytes. Credential IDs larger than this many bytes SHOULD cause the RP to fail this registration ceremony.
+	if len(authData.AttestedCredentialData.CredentialId) > 1023 {
+		c.Logger().Errorf("credential Id is too long")
+		return c.JSON(http.StatusBadRequest, Status{Message: "error"})
+	}
+
+	// 26. Verify that the credentialId is not yet registered for any user. If the credentialId is already known then the Relying Party SHOULD fail this registration ceremony.
+	if _, ok := credentialsMap[string(authData.AttestedCredentialData.CredentialId)]; ok {
+		c.Logger().Errorf("duplicate credential id")
+		return c.JSON(http.StatusBadRequest, Status{Message: "error"})
+	}
+
+	// 27. If the attestation statement attStmt verified successfully and is found to be trustworthy, then create and store a new credential record in the user account that was denoted in options.user, with the following contents:
+	userIdString := string(options.User.Id)
+	credentialRecord := model.CredentialRecord{
+		Id:                    string(authData.AttestedCredentialData.CredentialId),
+		Type:                  registerMessage.Type,
+		PublicKey:             authData.AttestedCredentialData.CredentialPublicKey,
+		Transports:            registerMessage.Response.Transports,
+		AttestationObject:     attestationObject,
+		AttestationClientData: clientData,
+	}
+	if credentialRecords, ok := userMap[userIdString]; ok {
+		userMap[userIdString] = append(credentialRecords, credentialRecord)
+	} else {
+		userMap[userIdString] = []model.CredentialRecord{credentialRecord}
+	}
+	credentialsMap[credentialRecord.Id] = model.User{
+		Id:          options.User.Id,
+		Name:        options.User.Name,
+		DisplayName: options.User.DisplayName,
+	}
 
 	return c.JSON(http.StatusAccepted, Status{Message: "accepted"})
 }
