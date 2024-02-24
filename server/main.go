@@ -415,6 +415,7 @@ func handleAttestationEnd(c echo.Context) error {
 		}
 		hashFunc := credentialRecord.PublicKey.Alg().GetHashFunc()
 		if !ecdsa.VerifyASN1(&publicKey, hashFunc.Sum(target), attestationEndMessage.Response.Signature) {
+			c.Logger().Errorf("verify error: hash: %v, sig: %v", hex.EncodeToString(hashFunc.Sum(target)), hex.EncodeToString(attestationEndMessage.Response.Signature))
 			return c.JSON(http.StatusBadRequest, Status{Message: "error"})
 		}
 	default:
