@@ -4,7 +4,7 @@ import "example.com/model/cose"
 
 type CredentialRecord struct {
 	Type                  string
-	Id                    string
+	Id                    []byte
 	PublicKey             cose.CredentialPublicKey
 	SignCount             uint32
 	Flags                 AuthenticatorFlags

@@ -2,8 +2,11 @@ package cose
 
 import (
 	"crypto"
+	"crypto/ecdsa"
+	"crypto/elliptic"
 	"errors"
 	"hash"
+	"math/big"
 
 	"github.com/fxamacker/cbor/v2"
 )
@@ -16,8 +19,8 @@ const (
 	ES512 = -36
 )
 
-func (id *COSEAlgorithmIdentifier) getHashFunc() hash.Hash {
-	switch *id {
+func (id COSEAlgorithmIdentifier) GetHashFunc() hash.Hash {
+	switch id {
 	case ES256:
 		return crypto.SHA256.New()
 	case ES384:
@@ -107,4 +110,24 @@ func (k EC2PublicKey) Alg() COSEAlgorithmIdentifier {
 
 func (k EC2PublicKey) KeyType() KeyType {
 	return k.Kty
+}
+
+func (k EC2PublicKey) PublicKey() (ecdsa.PublicKey, error) {
+	var crv elliptic.Curve
+	switch k.Crv {
+	case P256:
+		crv = elliptic.P256()
+	case P384:
+		crv = elliptic.P384()
+	case P521:
+		crv = elliptic.P521()
+	default:
+		return ecdsa.PublicKey{}, errors.New("invalid crv")
+	}
+
+	return ecdsa.PublicKey{
+		Curve: crv,
+		X:     big.NewInt(0).SetBytes(k.X),
+		Y:     big.NewInt(0).SetBytes(k.X),
+	}, nil
 }

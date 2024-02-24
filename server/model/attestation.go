@@ -49,14 +49,15 @@ type AttestedCredentialData struct {
 
 func UnmarshalAttestedCredentialData(data []byte) (AttestedCredentialData, []byte, error) {
 	credentialIdLength := uint16(binary.BigEndian.Uint16(data[16:18]))
-	credPubKey, ext, err := cose.UnmarshalCredentialPublcKey(data[18+credentialIdLength:])
+	credentialIdEndLength := 18 + credentialIdLength
+	credPubKey, ext, err := cose.UnmarshalCredentialPublcKey(data[credentialIdEndLength:])
 	if err != nil {
 		return AttestedCredentialData{}, nil, err
 	}
 	return AttestedCredentialData{
 		AAGUId:              data[:16],
 		CredentialIdLength:  credentialIdLength,
-		CredentialId:        data[18:credentialIdLength],
+		CredentialId:        data[18:credentialIdEndLength],
 		CredentialPublicKey: credPubKey,
 	}, ext, nil
 }

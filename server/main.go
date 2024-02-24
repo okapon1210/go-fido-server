@@ -2,12 +2,18 @@ package main
 
 import (
 	"bytes"
+	"crypto/ecdsa"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"net/http"
+	"net/url"
+	"strings"
 
+	"example.com/db"
 	"example.com/model"
+	"example.com/model/cose"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
@@ -18,27 +24,39 @@ type Status struct {
 	Message string
 }
 
-type RegisterMessage struct {
-	Id       string `json:"id"`
-	Type     string `json:"type"`
-	Response struct {
-		ClientDataJSON    []byte   `json:"clientDataJSON"`
-		AttestationObject []byte   `json:"attestationObject"`
-		Transports        []string `json:"transports"`
-	} `json:"response"`
+// var (
+// 	creationOptionsMap = make(map[string]model.PublicKeyCredentialCreationOptions)
+// 	requestOptionsMap  = make(map[string]model.PublicKeyCredentialRequestOptions)
+// 	// user を取得する
+// 	userMap = make(map[string]model.User)
+// 	// user に紐づいた credential を取得する
+// 	userCredentialRecordMap = make(map[string][]model.CredentialRecord)
+// 	// credential に紐づいた user を取得する
+// 	credentialUserMap = make(map[string]model.User)
+// )
+
+type RegisterStartMessage struct {
+	Name        string `json:"name"`
+	DisplayName string `json:"displayName,omitempty"`
 }
 
-var (
-	optionsMap     = make(map[string]model.PublicKeyCredentialCreationOptions)
-	userMap        = make(map[string][]model.CredentialRecord)
-	credentialsMap = make(map[string]model.User)
-)
-
 func handleRegisterStart(c echo.Context) error {
-	user := model.User{
-		Id:          make([]byte, 16),
-		Name:        "hoge@example.com",
-		DisplayName: "okapon",
+	registerStartMessage := new(RegisterStartMessage)
+	if err := c.Bind(registerStartMessage); err != nil {
+		return c.JSON(http.StatusBadRequest, Status{Message: "error"})
+	}
+
+	// user, ok := userMap[registerStartMessage.Name]
+	user, ok := db.GetUser(registerStartMessage.Name)
+	if !ok {
+		user = model.User{
+			Id:          make([]byte, 16),
+			Name:        registerStartMessage.Name,
+			DisplayName: registerStartMessage.DisplayName,
+		}
+		// userMap[user.Name] = user
+		db.SaveUser(user)
+		log.Infof("generate User. Id: %v, Name: %v", hex.EncodeToString(user.Id), user.Name)
 	}
 
 	// 1. Let options be a new PublicKeyCredentialCreationOptions structure configured to the Relying Party's needs for the ceremony.
@@ -48,17 +66,28 @@ func handleRegisterStart(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, Status{Message: "error"})
 	}
 
-	challengeB64 := base64.StdEncoding.EncodeToString(options.Challenge)
+	challengeString := strings.TrimRight(base64.StdEncoding.EncodeToString(options.Challenge), "=")
 
-	optionsMap[challengeB64] = options
+	// creationOptionsMap[challengeString] = options
+	db.SaveRegisterOption(options)
 
-	c.Logger().Infof("generate challenge: %v", challengeB64)
+	c.Logger().Infof("generate challenge: %v", challengeString)
 
 	return c.JSON(http.StatusOK, &options)
 }
 
+type RegisterResultMessage struct {
+	Id       string `json:"id"`
+	Type     string `json:"type"`
+	Response struct {
+		ClientDataJSON    []byte   `json:"clientDataJSON"`
+		AttestationObject []byte   `json:"attestationObject"`
+		Transports        []string `json:"transports"`
+	} `json:"response"`
+}
+
 func handleRegisterEnd(c echo.Context) error {
-	registerMessage := new(RegisterMessage)
+	registerMessage := new(RegisterResultMessage)
 	if err := c.Bind(registerMessage); err != nil {
 		return c.JSON(http.StatusBadRequest, Status{Message: "error"})
 	}
@@ -77,15 +106,23 @@ func handleRegisterEnd(c echo.Context) error {
 	}
 
 	// 8. Verify that the value of C.[challenge](https://www.w3.org/TR/webauthn-3/#dom-collectedclientdata-challenge) equals the base64url encoding of options.challenge.
-	c.Logger().Infof("receive challenge: %v", clientData.Challenge+"==")
-	options, ok := optionsMap[clientData.Challenge+"=="]
+	challenge := strings.Replace(strings.Replace(clientData.Challenge, "-", "+", -1), "_", "/", -1)
+	c.Logger().Infof("receive challenge: %v", challenge)
+	// options, ok := creationOptionsMap[clientData.Challenge]
+	options, ok := db.GetRegisterOption(challenge)
 	if !ok {
 		c.Logger().Error("challenge is not valid")
 		return c.JSON(http.StatusBadRequest, Status{Message: "error"})
 	}
+	// defer delete(creationOptionsMap, clientData.Challenge)
+	defer db.DeleteRegisterOption(clientData.Challenge)
 
 	// 9. Verify that the value of C.[origin](https://www.w3.org/TR/webauthn-3/#dom-collectedclientdata-origin) is an [origin](https://html.spec.whatwg.org/multipage/origin.html#concept-origin) expected by the [Relying Party](https://www.w3.org/TR/webauthn-3/#relying-party). See [§ 13.4.9 Validating the origin of a credential](https://www.w3.org/TR/webauthn-3/#sctn-validating-origin) for guidance.
-	if options.Rp.Id == clientData.Origin {
+	u, err := url.Parse(clientData.Origin)
+	if err != nil {
+		c.Logger().Error(err)
+	}
+	if options.Rp.Id != u.Hostname() {
 		c.Logger().Error("origin is not valid")
 		return c.JSON(http.StatusBadRequest, Status{Message: "error"})
 	}
@@ -170,41 +207,223 @@ func handleRegisterEnd(c echo.Context) error {
 	}
 
 	// 26. Verify that the credentialId is not yet registered for any user. If the credentialId is already known then the Relying Party SHOULD fail this registration ceremony.
-	if _, ok := credentialsMap[string(authData.AttestedCredentialData.CredentialId)]; ok {
+	// if _, ok := credentialUserMap[hex.EncodeToString(authData.AttestedCredentialData.CredentialId)]; ok {
+	if _, ok := db.GetUserByCredentialId(hex.EncodeToString(authData.AttestedCredentialData.CredentialId)); ok {
 		c.Logger().Errorf("duplicate credential id")
 		return c.JSON(http.StatusBadRequest, Status{Message: "error"})
 	}
 
 	// 27. If the attestation statement attStmt verified successfully and is found to be trustworthy, then create and store a new credential record in the user account that was denoted in options.user, with the following contents:
-	userIdString := string(options.User.Id)
 	credentialRecord := model.CredentialRecord{
-		Id:                    string(authData.AttestedCredentialData.CredentialId),
+		Id:                    authData.AttestedCredentialData.CredentialId,
 		Type:                  registerMessage.Type,
 		PublicKey:             authData.AttestedCredentialData.CredentialPublicKey,
 		Transports:            registerMessage.Response.Transports,
 		AttestationObject:     attestationObject,
 		AttestationClientData: clientData,
 	}
-	if credentialRecords, ok := userMap[userIdString]; ok {
-		userMap[userIdString] = append(credentialRecords, credentialRecord)
-	} else {
-		userMap[userIdString] = []model.CredentialRecord{credentialRecord}
-	}
-	credentialsMap[credentialRecord.Id] = model.User{
-		Id:          options.User.Id,
-		Name:        options.User.Name,
-		DisplayName: options.User.DisplayName,
-	}
+	// if credentialRecords, ok := userCredentialRecordMap[options.User.Name]; ok {
+	// 	userCredentialRecordMap[options.User.Name] = append(credentialRecords, credentialRecord)
+	// } else {
+	// 	userCredentialRecordMap[options.User.Name] = []model.CredentialRecord{credentialRecord}
+	// }
+	// credentialUserMap[hex.EncodeToString(credentialRecord.Id)] = model.User{
+	// 	Id:          options.User.Id,
+	// 	Name:        options.User.Name,
+	// 	DisplayName: options.User.DisplayName,
+	// }
+
+	db.SaveCredential(options.User.Name, credentialRecord)
 
 	return c.JSON(http.StatusAccepted, Status{Message: "accepted"})
 }
 
+type AttestationStartMessage struct {
+	Name             string `json:"name"`
+	UserVerification string `json:"userVerification"`
+}
+
+// 1. Let options be a new PublicKeyCredentialRequestOptions structure configured to the Relying Party's needs for the ceremony.
 func handleAttestationStart(c echo.Context) error {
-	return c.JSON(http.StatusNotFound, Status{Message: "error"})
+	attStartMessage := new(AttestationStartMessage)
+	if err := c.Bind(attStartMessage); err != nil {
+		c.Logger().Error(err)
+		return c.JSON(http.StatusBadRequest, Status{Message: "error"})
+	}
+	// credentialRecords, ok := userCredentialRecordMap[attStartMessage.Name]
+	credentialRecords, ok := db.GetCredentialByUserName(attStartMessage.Name)
+	if !ok {
+		c.Logger().Errorf("user name: %v: credentialRecord not found", attStartMessage.Name)
+		return c.JSON(http.StatusBadRequest, Status{Message: "error"})
+	}
+	var allowCredentials []model.PublicKeyCredentialDescriptor
+	for _, cr := range credentialRecords {
+		allowCredentials = append(allowCredentials, model.PublicKeyCredentialDescriptor{
+			Id:   cr.Id,
+			Type: cr.Type,
+		})
+	}
+	options, err := model.NewPublicKeyCredentialRequestOptions()
+	if err != nil {
+		c.Logger().Error(err)
+		return c.JSON(http.StatusInternalServerError, Status{Message: "error"})
+	}
+
+	challengeString := strings.TrimRight(base64.StdEncoding.EncodeToString(options.Challenge), "=")
+
+	// requestOptionsMap[challengeString] = options
+	db.SaveAttestationOption(options)
+	c.Logger().Infof("generate challenge: %v", challengeString)
+
+	options.AllowCredentials = allowCredentials
+	return c.JSON(http.StatusOK, options)
+}
+
+type AttestationEndMessage struct {
+	Id       string `json:"id"`
+	Response struct {
+		ClientDataJSON    []byte `json:"clientDataJSON"`
+		AuthenticatorData []byte `json:"authenticatorData"`
+		Signature         []byte `json:"signature"`
+		UserHandle        []byte `json:"userHandle,omitempty"`
+	}
 }
 
 func handleAttestationEnd(c echo.Context) error {
-	return c.JSON(http.StatusNotFound, Status{Message: "error"})
+	attestationEndMessage := new(AttestationEndMessage)
+	if err := c.Bind(attestationEndMessage); err != nil {
+		c.Logger().Error(err)
+		return c.JSON(http.StatusBadRequest, Status{"error"})
+	}
+
+	// 11. Let C, the client data claimed as used for the signature, be the result of running an implementation-specific JSON parser on JSONtext.
+	var clientData model.CollectedClientData
+	if err := json.Unmarshal(attestationEndMessage.Response.ClientDataJSON, &clientData); err != nil {
+		c.Logger().Errorf("error: %v, clientDataJSON: %v", err, string(attestationEndMessage.Response.ClientDataJSON))
+		return c.JSON(http.StatusBadRequest, Status{Message: "error"})
+	}
+
+	// 13. Verify that the value of C.challenge equals the base64url encoding of options.challenge.
+	challenge := strings.Replace(strings.Replace(clientData.Challenge, "-", "+", -1), "_", "/", -1)
+	c.Logger().Infof("receive challenge: %v", challenge)
+	// options, ok := requestOptionsMap[clientData.Challenge]
+	options, ok := db.GetAttestationOption(challenge)
+	if !ok {
+		c.Logger().Error("challenge is not valid")
+		return c.JSON(http.StatusBadRequest, Status{Message: "error"})
+	}
+	// defer delete(creationOptionsMap, clientData.Challenge)
+	db.DeleteAttestationOption(clientData.Challenge)
+
+	// 5. If options.allowCredentials is not empty, verify that credential.id identifies one of the public key credentials listed in options.allowCredentials.
+	credentialIdBase64 := strings.Replace(strings.Replace(attestationEndMessage.Id, "-", "+", -1), "_", "/", -1)
+	if shortage := len(attestationEndMessage.Id) % 4; shortage != 0 {
+		credentialIdBase64 += strings.Repeat("=", 4-shortage)
+	}
+	c.Logger().Infof("credIdBase64: %v", credentialIdBase64)
+	credentialId, err := base64.StdEncoding.DecodeString(credentialIdBase64)
+	if err != nil {
+		c.Logger().Error(err)
+		return c.JSON(http.StatusBadRequest, Status{Message: "error"})
+	}
+
+	if len(options.AllowCredentials) > 0 {
+		find := false
+		for _, allowCredential := range options.AllowCredentials {
+			if bytes.Equal(credentialId, allowCredential.Id) {
+				find = true
+			}
+		}
+		if !find {
+			c.Logger().Error("credential.id is not valid")
+			return c.JSON(http.StatusBadRequest, Status{Message: "error"})
+		}
+	}
+
+	// 12. Verify that the value of C.type is the string webauthn.get.
+	if clientData.Type != "webauthn.get" {
+		c.Logger().Error("type is not valid")
+		return c.JSON(http.StatusBadRequest, Status{Message: "error"})
+	}
+
+	// 14. Verify that the value of C.origin is an origin expected by the Relying Party. See § 13.4.9 Validating the origin of a credential for guidance.
+	u, err := url.Parse(clientData.Origin)
+	if err != nil {
+		c.Logger().Error(err)
+		return c.JSON(http.StatusBadRequest, Status{Message: "error"})
+	}
+	if options.RpId != u.Hostname() {
+		c.Logger().Error("origin is not valid")
+		return c.JSON(http.StatusBadRequest, Status{Message: "error"})
+	}
+
+	// 15. If C.topOrigin is present:
+	// TODO: iframe は無視
+
+	// 16. Verify that the rpIdHash in authData is the SHA-256 hash of the RP ID expected by the Relying Party.
+	authData, err := model.UnmarshalAuthenticatorData(attestationEndMessage.Response.AuthenticatorData)
+	if err != nil {
+		c.Logger().Errorf("authenticatorData is not valid: %v", err)
+		return c.JSON(http.StatusBadRequest, Status{Message: "error"})
+	}
+	correctRpIdHash := sha256.Sum256([]byte(options.RpId))
+	if !bytes.Equal(authData.RpIdHash, correctRpIdHash[:]) {
+		c.Logger().Errorf("rpIdHash is different. want: %x, got: %x", correctRpIdHash, authData.RpIdHash)
+		return c.JSON(http.StatusBadRequest, Status{Message: "error"})
+	}
+
+	// 17. Verify that the UP bit of the flags in authData is set.
+	if !authData.Flags.UP {
+		c.Logger().Errorf("Up is not set")
+		return c.JSON(http.StatusBadRequest, Status{Message: "error"})
+	}
+
+	// 18. Determine whether user verification is required for this assertion. User verification SHOULD be required if, and only if, options.userVerification is set to required.
+	// if options.UserVerification == "required" {
+	// 	// ユーザの検証やる？
+	// }
+
+	// 19. If the BE bit of the flags in authData is not set, verify that the BS bit is not set.
+	if !authData.Flags.BE {
+		if authData.Flags.BS {
+			c.Logger().Error("flag is not valid")
+			return c.JSON(http.StatusBadRequest, Status{Message: "error"})
+		}
+	}
+
+	// 20. If the credential backup state is used as part of Relying Party business logic or policy, let currentBe and currentBs be the values of the BE and BS bits, respectively, of the flags in authData. Compare currentBe and currentBs with credentialRecord.backupEligible and credentialRecord.backupState:
+	// Backup の状態を見て何かしたければ
+
+	// 21. Verify that the values of the client extension outputs in clientExtensionResults and the authenticator extension outputs in the extensions in authData are as expected, considering the client extension input values that were given in options.extensions and any specific policy of the Relying Party regarding unsolicited extensions, i.e., those that were not specified as part of options.extensions. In the general case, the meaning of "are as expected" is specific to the Relying Party and which extensions are in use.
+	// TODO: 拡張はいったん無視
+
+	// 22. Let hash be the result of computing a hash over the cData using SHA-256.
+	hash := sha256.Sum256(attestationEndMessage.Response.ClientDataJSON)
+
+	// 23. Using credentialRecord.publicKey, verify that sig is a valid signature over the binary concatenation of authData and hash.
+	credentialRecord, ok := db.GetCredential(hex.EncodeToString(credentialId))
+	if !ok {
+		c.Logger().Error("credentialRecord is not found")
+		return c.JSON(http.StatusBadRequest, Status{Message: "error"})
+	}
+	target := append(attestationEndMessage.Response.AuthenticatorData, hash[:]...)
+	switch pubKey := credentialRecord.PublicKey.(type) {
+	case cose.EC2PublicKey:
+		publicKey, err := pubKey.PublicKey()
+		if err != nil {
+			c.Logger().Errorf("parse publickey failed: %v", err)
+		}
+		hashFunc := credentialRecord.PublicKey.Alg().GetHashFunc()
+		if !ecdsa.VerifyASN1(&publicKey, hashFunc.Sum(target), attestationEndMessage.Response.Signature) {
+			return c.JSON(http.StatusBadRequest, Status{Message: "error"})
+		}
+	default:
+		return c.JSON(http.StatusBadRequest, Status{Message: "error"})
+	}
+
+	// 24. If authData.signCount is nonzero or credentialRecord.signCount is nonzero, then run the following sub-step:
+
+	return c.JSON(http.StatusAccepted, Status{Message: "accepted"})
 }
 
 func main() {

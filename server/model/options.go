@@ -94,3 +94,28 @@ func NewPublicKeyCredentialCreationOptions(user User) (PublicKeyCredentialCreati
 		},
 	}, nil
 }
+
+type PublicKeyCredentialRequestOptions struct {
+	Challenge          []byte                          `json:"challenge"`
+	Timeout            uint32                          `json:"timeout,omitempty"`
+	RpId               string                          `json:"rpId,omitempty"`
+	AllowCredentials   []PublicKeyCredentialDescriptor `json:"allowCredentials,omitempty"`
+	UserVerification   string                          `json:"userVerification,omitempty"`
+	Hints              []string                        `json:"hints,omitempty"`
+	Attestation        string                          `json:"attestation,omitempty"`
+	AttestationFormats []string                        `json:"attestationFormats,omitempty"`
+	Extensions         map[string]interface{}          `json:"extensions,omitempty"`
+}
+
+func NewPublicKeyCredentialRequestOptions() (PublicKeyCredentialRequestOptions, error) {
+	challenge := make([]byte, 16)
+	if _, err := rand.Read(challenge); err != nil {
+		return PublicKeyCredentialRequestOptions{}, errors.New("failed to generate challenge")
+	}
+	return PublicKeyCredentialRequestOptions{
+		Challenge:        challenge,
+		Attestation:      "none",
+		UserVerification: "preferred",
+		RpId:             "localhost",
+	}, nil
+}
