@@ -102,6 +102,27 @@ func SaveCredential(userName string, cr model.CredentialRecord) error {
 	return nil
 }
 
+func UpdateCredential(cr model.CredentialRecord) error {
+	user, ok := GetUserByCredentialId(hex.EncodeToString(cr.Id))
+	if !ok {
+		return errors.New("user is not found")
+	}
+
+	idString := hex.EncodeToString(cr.Id)
+	credentialRecordMap[idString] = cr
+
+	_, ok = userCredentialRecordsMap[user.Name]
+	if ok {
+		userCredentialRecordsMap[user.Name] = append(userCredentialRecordsMap[user.Name], cr)
+	} else {
+		userCredentialRecordsMap[user.Name] = []model.CredentialRecord{cr}
+	}
+
+	credentialUserMap[idString] = user
+
+	return nil
+}
+
 func GetCredentialByUserName(name string) ([]model.CredentialRecord, bool) {
 	crs, ok := userCredentialRecordsMap[name]
 	return crs, ok

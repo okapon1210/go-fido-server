@@ -417,6 +417,30 @@ func handleAttestationEnd(c echo.Context) error {
 	}
 
 	// 24. If authData.signCount is nonzero or credentialRecord.signCount is nonzero, then run the following sub-step:
+	// 一部必ず0を入れて返してくる環境が有るらしいので逆転していなければ無視
+	if credentialRecord.SignCount > authData.SignCount {
+		c.Logger().Errorf("invalid signCount record: %v, new: %v", credentialRecord.SignCount, authData.SignCount)
+		return c.JSON(http.StatusBadRequest, Status{Message: "error"})
+	}
+
+	// 25. If response.attestationObject is present and the Relying Party wishes to verify the attestation then perform CBOR decoding on attestationObject to obtain the attestation statement format fmt, and the attestation statement attStmt.
+	// attestation: none にしちゃうのでいったん無視
+
+	// 26. Update credentialRecord with new state values:
+	newCR := model.CredentialRecord{
+		Id:                    credentialRecord.Id,
+		Type:                  credentialRecord.Type,
+		PublicKey:             credentialRecord.PublicKey,
+		SignCount:             authData.SignCount,
+		Flags:                 credentialRecord.Flags, // 面倒だったのでいったんそのまま
+		Transports:            credentialRecord.Transports,
+		AttestationObject:     credentialRecord.AttestationObject, // front に attestationObject の型が無いのでいったんそのまま
+		AttestationClientData: clientData,
+	}
+	if err := db.UpdateCredential(newCR); err != nil {
+		c.Logger().Error(err)
+		return c.JSON(http.StatusBadRequest, Status{Message: "error"})
+	}
 
 	return c.JSON(http.StatusAccepted, Status{Message: "accepted"})
 }

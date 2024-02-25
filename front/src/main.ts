@@ -161,6 +161,7 @@ const postSigninResult = async (
       userHandle: response.userHandle
         ? uint8ArrayToBase64(new Uint8Array(response.userHandle))
         : null,
+      // response.attestationObject の型定義が存在しない
     },
   })
 
