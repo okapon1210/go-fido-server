@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"crypto/ecdsa"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
@@ -166,7 +165,7 @@ func handleRegisterEnd(c echo.Context) error {
 	// 19. Verify that the "alg" parameter in the credential public key in authData matches the alg attribute of one of the items in options.pubKeyCredParams.
 	find := false
 	for _, credParams := range options.PubKeyCredParams {
-		if authData.AttestedCredentialData.CredentialPublicKey.Alg() == credParams.Alg {
+		if authData.AttestedCredentialData.CredentialPublicKey.AlgType() == credParams.Alg {
 			find = true
 			break
 		}
@@ -320,7 +319,7 @@ func handleAttestationEnd(c echo.Context) error {
 	if shortage := len(attestationEndMessage.Id) % 4; shortage != 0 {
 		credentialIdBase64 += strings.Repeat("=", 4-shortage)
 	}
-	c.Logger().Infof("credIdBase64: %v", credentialIdBase64)
+
 	credentialId, err := base64.StdEncoding.DecodeString(credentialIdBase64)
 	if err != nil {
 		c.Logger().Error(err)
@@ -409,13 +408,8 @@ func handleAttestationEnd(c echo.Context) error {
 	target := append(attestationEndMessage.Response.AuthenticatorData, hash[:]...)
 	switch pubKey := credentialRecord.PublicKey.(type) {
 	case cose.EC2PublicKey:
-		publicKey, err := pubKey.PublicKey()
-		if err != nil {
-			c.Logger().Errorf("parse publickey failed: %v", err)
-		}
-		hashFunc := credentialRecord.PublicKey.Alg().GetHashFunc()
-		if !ecdsa.VerifyASN1(&publicKey, hashFunc.Sum(target), attestationEndMessage.Response.Signature) {
-			c.Logger().Errorf("verify error: hash: %v, sig: %v", hex.EncodeToString(hashFunc.Sum(target)), hex.EncodeToString(attestationEndMessage.Response.Signature))
+		if err := pubKey.Verify(target, attestationEndMessage.Response.Signature); err != nil {
+			c.Logger().Error(err)
 			return c.JSON(http.StatusBadRequest, Status{Message: "error"})
 		}
 	default:

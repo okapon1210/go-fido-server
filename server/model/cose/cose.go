@@ -4,7 +4,9 @@ import (
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/elliptic"
+	"encoding/asn1"
 	"errors"
+	"fmt"
 	"hash"
 	"math/big"
 
@@ -33,8 +35,8 @@ func (id COSEAlgorithmIdentifier) GetHashFunc() hash.Hash {
 }
 
 type CredentialPublicKey interface {
-	Verify() bool
-	Alg() COSEAlgorithmIdentifier
+	AlgType() COSEAlgorithmIdentifier
+	KeyType() KeyType
 }
 
 // [7. Key Object Parameters](https://www.rfc-editor.org/rfc/rfc9053.html#name-key-object-parameters)
@@ -67,9 +69,6 @@ func UnmarshalCredentialPublcKey(data []byte) (CredentialPublicKey, []byte, erro
 		if err != nil {
 			return nil, nil, err
 		}
-		if !ec2PubKey.Verify() {
-			return nil, nil, errors.New("crv is not valid")
-		}
 		return ec2PubKey, ext, nil
 	default:
 		return nil, nil, errors.New("kty is not valid")
@@ -97,22 +96,7 @@ type EC2PublicKey struct {
 	Y   []byte    `cbor:"-3,keyasint"`
 }
 
-func (k EC2PublicKey) Verify() bool {
-	if k.Crv != P256 && k.Crv != P384 && k.Crv != P521 {
-		return false
-	}
-	return true
-}
-
-func (k EC2PublicKey) Alg() COSEAlgorithmIdentifier {
-	return k.CredentialPublicKeyBase.Alg
-}
-
-func (k EC2PublicKey) KeyType() KeyType {
-	return k.Kty
-}
-
-func (k EC2PublicKey) PublicKey() (ecdsa.PublicKey, error) {
+func (k EC2PublicKey) Verify(base, signature []byte) error {
 	var crv elliptic.Curve
 	switch k.Crv {
 	case P256:
@@ -122,12 +106,38 @@ func (k EC2PublicKey) PublicKey() (ecdsa.PublicKey, error) {
 	case P521:
 		crv = elliptic.P521()
 	default:
-		return ecdsa.PublicKey{}, errors.New("invalid crv")
+		return fmt.Errorf("CurveType is not valid crv: %v", k.Crv)
 	}
 
-	return ecdsa.PublicKey{
+	publicKey := ecdsa.PublicKey{
 		Curve: crv,
 		X:     big.NewInt(0).SetBytes(k.X),
-		Y:     big.NewInt(0).SetBytes(k.X),
-	}, nil
+		Y:     big.NewInt(0).SetBytes(k.Y),
+	}
+
+	var esig EcdsaSignature
+	if _, err := asn1.Unmarshal(signature, &esig); err != nil {
+		return err
+	}
+
+	hasher := k.Alg.GetHashFunc()
+	hasher.Write(base)
+
+	if !ecdsa.Verify(&publicKey, hasher.Sum(nil), esig.R, esig.S) {
+		return errors.New("invalid signature")
+	}
+
+	return nil
+}
+
+func (k EC2PublicKey) KeyType() KeyType {
+	return k.Kty
+}
+
+func (k EC2PublicKey) AlgType() COSEAlgorithmIdentifier {
+	return k.Alg
+}
+
+type EcdsaSignature struct {
+	R, S *big.Int
 }
