@@ -23,17 +23,6 @@ type Status struct {
 	Message string
 }
 
-// var (
-// 	creationOptionsMap = make(map[string]model.PublicKeyCredentialCreationOptions)
-// 	requestOptionsMap  = make(map[string]model.PublicKeyCredentialRequestOptions)
-// 	// user を取得する
-// 	userMap = make(map[string]model.User)
-// 	// user に紐づいた credential を取得する
-// 	userCredentialRecordMap = make(map[string][]model.CredentialRecord)
-// 	// credential に紐づいた user を取得する
-// 	credentialUserMap = make(map[string]model.User)
-// )
-
 type RegisterStartMessage struct {
 	Name        string `json:"name"`
 	DisplayName string `json:"displayName,omitempty"`
@@ -45,7 +34,6 @@ func handleRegisterStart(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, Status{Message: "error"})
 	}
 
-	// user, ok := userMap[registerStartMessage.Name]
 	user, ok := db.GetUser(registerStartMessage.Name)
 	if !ok {
 		user = model.User{
@@ -53,7 +41,6 @@ func handleRegisterStart(c echo.Context) error {
 			Name:        registerStartMessage.Name,
 			DisplayName: registerStartMessage.DisplayName,
 		}
-		// userMap[user.Name] = user
 		db.SaveUser(user)
 		log.Infof("generate User. Id: %v, Name: %v", hex.EncodeToString(user.Id), user.Name)
 	}
@@ -67,7 +54,6 @@ func handleRegisterStart(c echo.Context) error {
 
 	challengeString := strings.TrimRight(base64.StdEncoding.EncodeToString(options.Challenge), "=")
 
-	// creationOptionsMap[challengeString] = options
 	db.SaveRegisterOption(options)
 
 	c.Logger().Infof("generate challenge: %v", challengeString)
@@ -107,13 +93,12 @@ func handleRegisterEnd(c echo.Context) error {
 	// 8. Verify that the value of C.[challenge](https://www.w3.org/TR/webauthn-3/#dom-collectedclientdata-challenge) equals the base64url encoding of options.challenge.
 	challenge := strings.Replace(strings.Replace(clientData.Challenge, "-", "+", -1), "_", "/", -1)
 	c.Logger().Infof("receive challenge: %v", challenge)
-	// options, ok := creationOptionsMap[clientData.Challenge]
+
 	options, ok := db.GetRegisterOption(challenge)
 	if !ok {
 		c.Logger().Error("challenge is not valid")
 		return c.JSON(http.StatusBadRequest, Status{Message: "error"})
 	}
-	// defer delete(creationOptionsMap, clientData.Challenge)
 	defer db.DeleteRegisterOption(clientData.Challenge)
 
 	// 9. Verify that the value of C.[origin](https://www.w3.org/TR/webauthn-3/#dom-collectedclientdata-origin) is an [origin](https://html.spec.whatwg.org/multipage/origin.html#concept-origin) expected by the [Relying Party](https://www.w3.org/TR/webauthn-3/#relying-party). See [§ 13.4.9 Validating the origin of a credential](https://www.w3.org/TR/webauthn-3/#sctn-validating-origin) for guidance.
@@ -206,7 +191,6 @@ func handleRegisterEnd(c echo.Context) error {
 	}
 
 	// 26. Verify that the credentialId is not yet registered for any user. If the credentialId is already known then the Relying Party SHOULD fail this registration ceremony.
-	// if _, ok := credentialUserMap[hex.EncodeToString(authData.AttestedCredentialData.CredentialId)]; ok {
 	if _, ok := db.GetUserByCredentialId(hex.EncodeToString(authData.AttestedCredentialData.CredentialId)); ok {
 		c.Logger().Errorf("duplicate credential id")
 		return c.JSON(http.StatusBadRequest, Status{Message: "error"})
@@ -221,16 +205,6 @@ func handleRegisterEnd(c echo.Context) error {
 		AttestationObject:     attestationObject,
 		AttestationClientData: clientData,
 	}
-	// if credentialRecords, ok := userCredentialRecordMap[options.User.Name]; ok {
-	// 	userCredentialRecordMap[options.User.Name] = append(credentialRecords, credentialRecord)
-	// } else {
-	// 	userCredentialRecordMap[options.User.Name] = []model.CredentialRecord{credentialRecord}
-	// }
-	// credentialUserMap[hex.EncodeToString(credentialRecord.Id)] = model.User{
-	// 	Id:          options.User.Id,
-	// 	Name:        options.User.Name,
-	// 	DisplayName: options.User.DisplayName,
-	// }
 
 	db.SaveCredential(options.User.Name, credentialRecord)
 
@@ -249,7 +223,7 @@ func handleAttestationStart(c echo.Context) error {
 		c.Logger().Error(err)
 		return c.JSON(http.StatusBadRequest, Status{Message: "error"})
 	}
-	// credentialRecords, ok := userCredentialRecordMap[attStartMessage.Name]
+
 	credentialRecords, ok := db.GetCredentialByUserName(attStartMessage.Name)
 	if !ok {
 		c.Logger().Errorf("user name: %v: credentialRecord not found", attStartMessage.Name)
@@ -270,7 +244,6 @@ func handleAttestationStart(c echo.Context) error {
 
 	challengeString := strings.TrimRight(base64.StdEncoding.EncodeToString(options.Challenge), "=")
 
-	// requestOptionsMap[challengeString] = options
 	db.SaveAttestationOption(options)
 	c.Logger().Infof("generate challenge: %v", challengeString)
 
@@ -305,13 +278,12 @@ func handleAttestationEnd(c echo.Context) error {
 	// 13. Verify that the value of C.challenge equals the base64url encoding of options.challenge.
 	challenge := strings.Replace(strings.Replace(clientData.Challenge, "-", "+", -1), "_", "/", -1)
 	c.Logger().Infof("receive challenge: %v", challenge)
-	// options, ok := requestOptionsMap[clientData.Challenge]
+
 	options, ok := db.GetAttestationOption(challenge)
 	if !ok {
 		c.Logger().Error("challenge is not valid")
 		return c.JSON(http.StatusBadRequest, Status{Message: "error"})
 	}
-	// defer delete(creationOptionsMap, clientData.Challenge)
 	db.DeleteAttestationOption(clientData.Challenge)
 
 	// 5. If options.allowCredentials is not empty, verify that credential.id identifies one of the public key credentials listed in options.allowCredentials.

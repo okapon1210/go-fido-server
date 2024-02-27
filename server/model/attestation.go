@@ -8,6 +8,15 @@ import (
 	"github.com/fxamacker/cbor/v2"
 )
 
+const (
+	up byte = 1 << iota
+	uv
+	be
+	bs
+	at
+	ed
+)
+
 type AuthenticatorFlags struct {
 	UP bool
 	UV bool
@@ -18,26 +27,14 @@ type AuthenticatorFlags struct {
 }
 
 func ParseAuthenticatorFlags(flags byte) AuthenticatorFlags {
-	var af AuthenticatorFlags
-	if 0x1&flags == 0x1 {
-		af.UP = true
+	return AuthenticatorFlags{
+		UP: flags&up == up,
+		UV: flags&uv == uv,
+		BE: flags&be == be,
+		BS: flags&bs == bs,
+		AT: flags&at == at,
+		ED: flags&ed == ed,
 	}
-	if 0x4&flags == 0x4 {
-		af.UV = true
-	}
-	if 0x8&flags == 0x8 {
-		af.BE = true
-	}
-	if 0x10&flags == 0x10 {
-		af.BS = true
-	}
-	if 0x40&flags == 0x40 {
-		af.AT = true
-	}
-	if 0x80&flags == 0x80 {
-		af.ED = true
-	}
-	return af
 }
 
 type AttestedCredentialData struct {
