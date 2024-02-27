@@ -105,7 +105,7 @@ func (k EC2PublicKey) Verify(base, signature []byte) error {
 	case P521:
 		crv = elliptic.P521()
 	default:
-		return fmt.Errorf("CurveType is not valid crv: %v", k.Crv)
+		return fmt.Errorf("invalid CurveType crv: %v", k.Crv)
 	}
 
 	publicKey := ecdsa.PublicKey{
