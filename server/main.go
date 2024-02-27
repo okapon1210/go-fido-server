@@ -52,11 +52,9 @@ func handleRegisterStart(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, Status{Message: "error"})
 	}
 
-	challengeString := strings.TrimRight(base64.StdEncoding.EncodeToString(options.Challenge), "=")
-
 	db.SaveRegisterOption(options)
 
-	c.Logger().Infof("generate challenge: %v", challengeString)
+	c.Logger().Infof("generate challenge: %v", base64.RawURLEncoding.EncodeToString(options.Challenge))
 
 	return c.JSON(http.StatusOK, &options)
 }
@@ -91,10 +89,9 @@ func handleRegisterEnd(c echo.Context) error {
 	}
 
 	// 8. Verify that the value of C.[challenge](https://www.w3.org/TR/webauthn-3/#dom-collectedclientdata-challenge) equals the base64url encoding of options.challenge.
-	challenge := strings.Replace(strings.Replace(clientData.Challenge, "-", "+", -1), "_", "/", -1)
-	c.Logger().Infof("receive challenge: %v", challenge)
+	c.Logger().Infof("receive challenge: %v", clientData.Challenge)
 
-	options, ok := db.GetRegisterOption(challenge)
+	options, ok := db.GetRegisterOption(clientData.Challenge)
 	if !ok {
 		c.Logger().Error("challenge is not valid")
 		return c.JSON(http.StatusBadRequest, Status{Message: "error"})
@@ -164,6 +161,7 @@ func handleRegisterEnd(c echo.Context) error {
 	// TODO: 拡張はいったん無視
 
 	// 21. Determine the attestation statement format by performing a USASCII case-sensitive match on fmt against the set of supported WebAuthn Attestation Statement Format Identifier values. An up-to-date list of registered WebAuthn Attestation Statement Format Identifier values is maintained in the IANA "WebAuthn Attestation Statement Format Identifiers" registry [IANA-WebAuthn-Registries] established by [RFC8809].
+	// 一旦 attestation none 想定
 	switch attestationObject.Fmt {
 	case model.Packed:
 	case model.Tpm:
@@ -172,6 +170,7 @@ func handleRegisterEnd(c echo.Context) error {
 	case model.FidoU2F:
 	case model.Apple:
 	case model.None:
+		// 何もしない
 	default:
 		c.Logger().Errorf("fmt is not valid")
 		return c.JSON(http.StatusBadRequest, Status{Message: "error"})

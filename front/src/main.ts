@@ -92,12 +92,6 @@ const register = async () => {
 
     postRegisterResult(credential.id, credential.type, response)
 
-    // const JSONtext = new TextDecoder('utf-8').decode(response.clientDataJSON)
-
-    // const C = JSON.parse(JSONtext)
-
-    // console.log("sending challenge: ", C.challenge) // なぜか / が _ に変換される
-
   } catch (e) {
     console.error(e)
   }

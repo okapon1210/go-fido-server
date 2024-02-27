@@ -4,7 +4,6 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
-	"strings"
 
 	"example.com/model"
 )
@@ -23,12 +22,12 @@ var (
 	credentialUserMap        = make(map[string]model.User)
 )
 
-func SaveRegisterOption(option model.PublicKeyCredentialCreationOptions) error {
-	challengeString := strings.TrimRight(base64.StdEncoding.EncodeToString(option.Challenge), "=")
+func SaveRegisterOption(options model.PublicKeyCredentialCreationOptions) error {
+	challengeString := base64.RawURLEncoding.EncodeToString(options.Challenge)
 	if _, ok := registerOptionMap[challengeString]; ok {
 		return errors.New("challenge: " + challengeString + " is already exists")
 	}
-	registerOptionMap[challengeString] = option
+	registerOptionMap[challengeString] = options
 	return nil
 }
 
@@ -41,12 +40,12 @@ func DeleteRegisterOption(challenge string) {
 	delete(registerOptionMap, challenge)
 }
 
-func SaveAttestationOption(option model.PublicKeyCredentialRequestOptions) error {
-	challengeString := strings.TrimRight(base64.StdEncoding.EncodeToString(option.Challenge), "=")
+func SaveAttestationOption(options model.PublicKeyCredentialRequestOptions) error {
+	challengeString := base64.RawURLEncoding.EncodeToString(options.Challenge)
 	if _, ok := attestationOptionMap[challengeString]; ok {
 		return errors.New("challenge: " + challengeString + " is already exists")
 	}
-	attestationOptionMap[challengeString] = option
+	attestationOptionMap[challengeString] = options
 	return nil
 }
 

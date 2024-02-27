@@ -10,9 +10,11 @@ import (
 
 const (
 	up byte = 1 << iota
+	rfu1
 	uv
 	be
 	bs
+	rfu2
 	at
 	ed
 )
@@ -93,7 +95,7 @@ func UnmarshalAuthenticatorData(data []byte) (AuthenticatorData, error) {
 	authData := AuthenticatorData{
 		RpIdHash:  defaultAuthData[:32],
 		Flags:     ParseAuthenticatorFlags(defaultAuthData[32]),
-		SignCount: uint32(binary.BigEndian.Uint32(defaultAuthData[33:])),
+		SignCount: binary.BigEndian.Uint32(defaultAuthData[33:]),
 	}
 
 	var err error

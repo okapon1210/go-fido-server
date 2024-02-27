@@ -4,7 +4,6 @@ import (
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/elliptic"
-	"encoding/asn1"
 	"errors"
 	"fmt"
 	"hash"
@@ -115,15 +114,10 @@ func (k EC2PublicKey) Verify(base, signature []byte) error {
 		Y:     big.NewInt(0).SetBytes(k.Y),
 	}
 
-	var esig EcdsaSignature
-	if _, err := asn1.Unmarshal(signature, &esig); err != nil {
-		return err
-	}
-
 	hasher := k.Alg.GetHashFunc()
 	hasher.Write(base)
 
-	if !ecdsa.Verify(&publicKey, hasher.Sum(nil), esig.R, esig.S) {
+	if !ecdsa.VerifyASN1(&publicKey, hasher.Sum(nil), signature) {
 		return errors.New("invalid signature")
 	}
 
