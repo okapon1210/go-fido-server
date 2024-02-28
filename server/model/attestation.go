@@ -107,7 +107,7 @@ func UnmarshalAuthenticatorData(data []byte) (AuthenticatorData, error) {
 		}
 	}
 
-	if authData.Flags.BE {
+	if authData.Flags.ED {
 		if err = cbor.Unmarshal(extByte, authData.Extensions); err != nil {
 			return AuthenticatorData{}, err
 		}
