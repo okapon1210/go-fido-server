@@ -2,7 +2,7 @@ import './style.css'
 
 import { uint8ArrayToBase64, base64ToUint8Array } from "../util"
 
-const BASE_URL = "http://localhost:8080"
+const BASE_URL = `${location.protocol}//${location.hostname}:8080`
 
 const getRegisterOptions = async (name: string, displayName: string) => {
   const url = new URL("/register/start", BASE_URL)
