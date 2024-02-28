@@ -90,11 +90,13 @@ const register = async () => {
 
     const response = credential.response as AuthenticatorAttestationResponse
 
-    postRegisterResult(credential.id, credential.type, response)
+    await postRegisterResult(credential.id, credential.type, response)
 
+    console.log('register succeeded')
   } catch (e) {
     console.error(e)
   }
+
   return
 }
 
@@ -192,12 +194,13 @@ const signin = async () => {
 
     const response = credential.response as AuthenticatorAssertionResponse
 
-    postSigninResult(credential.id, response)
+    await postSigninResult(credential.id, response)
 
-    console.log(response)
+    console.log('signin succeeded')
   } catch (e) {
     console.error(e)
   }
+
   return
 }
 
