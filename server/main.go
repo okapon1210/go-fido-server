@@ -207,6 +207,7 @@ func handleRegisterEnd(c echo.Context) error {
 
 	db.SaveCredential(options.User.Name, credentialRecord)
 
+	c.Logger().Info("register succeeded")
 	return c.JSON(http.StatusAccepted, Status{Message: "accepted"})
 }
 
@@ -413,6 +414,7 @@ func handleAttestationEnd(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, Status{Message: "error"})
 	}
 
+	c.Logger().Info("attestation succeeded")
 	return c.JSON(http.StatusAccepted, Status{Message: "accepted"})
 }
 

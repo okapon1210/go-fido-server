@@ -41,7 +41,7 @@ func DeleteRegisterOption(challenge string) {
 }
 
 func SaveAttestationOption(options model.PublicKeyCredentialRequestOptions) error {
-	challengeString := base64.RawURLEncoding.EncodeToString(options.Challenge)
+	challengeString := base64.RawStdEncoding.EncodeToString(options.Challenge)
 	if _, ok := attestationOptionMap[challengeString]; ok {
 		return errors.New("challenge: " + challengeString + " is already exists")
 	}

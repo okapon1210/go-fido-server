@@ -47,7 +47,7 @@ const (
 	Symmetric KeyType = 4
 )
 
-type CredentialPublicKeyBase struct {
+type credentialPublicKeyBase struct {
 	Kty     KeyType                 `cbor:"1,keyasint"`
 	Kid     []byte                  `cbor:"2,keyasint,omitempty"`
 	Alg     COSEAlgorithmIdentifier `cbor:"3,keyasint,omitempty"`
@@ -55,8 +55,16 @@ type CredentialPublicKeyBase struct {
 	BaseIV  []byte                  `cbor:"5,keyasint,omitempty"`
 }
 
+func (cp credentialPublicKeyBase) KeyType() KeyType {
+	return cp.Kty
+}
+
+func (cp credentialPublicKeyBase) AlgType() COSEAlgorithmIdentifier {
+	return cp.Alg
+}
+
 func UnmarshalCredentialPublcKey(data []byte) (CredentialPublicKey, []byte, error) {
-	var credPubkey CredentialPublicKeyBase
+	var credPubkey credentialPublicKeyBase
 	_, err := cbor.UnmarshalFirst(data, &credPubkey)
 	if err != nil {
 		return nil, nil, err
@@ -89,7 +97,7 @@ const (
 
 // [7.1.1. Double Coordinate Curves](https://www.rfc-editor.org/rfc/rfc9053.html#name-double-coordinate-curves)
 type EC2PublicKey struct {
-	CredentialPublicKeyBase
+	credentialPublicKeyBase
 	Crv CurveType `cbor:"-1,keyasint"`
 	X   []byte    `cbor:"-2,keyasint"`
 	Y   []byte    `cbor:"-3,keyasint"`
@@ -122,14 +130,6 @@ func (k EC2PublicKey) Verify(base, signature []byte) error {
 	}
 
 	return nil
-}
-
-func (k EC2PublicKey) KeyType() KeyType {
-	return k.Kty
-}
-
-func (k EC2PublicKey) AlgType() COSEAlgorithmIdentifier {
-	return k.Alg
 }
 
 type EcdsaSignature struct {
