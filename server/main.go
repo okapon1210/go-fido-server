@@ -31,6 +31,12 @@ type RegisterStartMessage struct {
 func handleRegisterStart(c echo.Context) error {
 	registerStartMessage := new(RegisterStartMessage)
 	if err := c.Bind(registerStartMessage); err != nil {
+		c.Logger().Error(err)
+		return c.JSON(http.StatusBadRequest, Status{Message: "error"})
+	}
+
+	if registerStartMessage.Name == "" {
+		c.Logger().Error("message.name not found")
 		return c.JSON(http.StatusBadRequest, Status{Message: "error"})
 	}
 
@@ -60,8 +66,6 @@ func handleRegisterStart(c echo.Context) error {
 }
 
 type RegisterResultMessage struct {
-	Id       string `json:"id"`
-	Type     string `json:"type"`
 	Response struct {
 		ClientDataJSON    []byte   `json:"clientDataJSON"`
 		AttestationObject []byte   `json:"attestationObject"`
@@ -146,9 +150,11 @@ func handleRegisterEnd(c echo.Context) error {
 
 	// 19. Verify that the "alg" parameter in the credential public key in authData matches the alg attribute of one of the items in options.pubKeyCredParams.
 	find := false
+	var publicKeyCredentialType string
 	for _, credParams := range options.PubKeyCredParams {
 		if authData.AttestedCredentialData.CredentialPublicKey.AlgType() == credParams.Alg {
 			find = true
+			publicKeyCredentialType = credParams.Type
 			break
 		}
 	}
@@ -198,7 +204,7 @@ func handleRegisterEnd(c echo.Context) error {
 	// 27. If the attestation statement attStmt verified successfully and is found to be trustworthy, then create and store a new credential record in the user account that was denoted in options.user, with the following contents:
 	credentialRecord := model.CredentialRecord{
 		Id:                    authData.AttestedCredentialData.CredentialId,
-		Type:                  registerMessage.Type,
+		Type:                  publicKeyCredentialType,
 		PublicKey:             authData.AttestedCredentialData.CredentialPublicKey,
 		Transports:            registerMessage.Response.Transports,
 		AttestationObject:     attestationObject,

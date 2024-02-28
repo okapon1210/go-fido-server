@@ -92,6 +92,7 @@ func NewPublicKeyCredentialCreationOptions(user User) (PublicKeyCredentialCreati
 			Id:          user.Id,
 			DisplayName: user.DisplayName,
 		},
+		AuthenticatorSelection: NewAuthenticatorSelectionCriteria("", "", nil, "required"),
 	}, nil
 }
 
@@ -115,7 +116,7 @@ func NewPublicKeyCredentialRequestOptions() (PublicKeyCredentialRequestOptions, 
 	return PublicKeyCredentialRequestOptions{
 		Challenge:        challenge,
 		Attestation:      "none",
-		UserVerification: "preferred",
+		UserVerification: "required",
 		RpId:             "localhost",
 	}, nil
 }
